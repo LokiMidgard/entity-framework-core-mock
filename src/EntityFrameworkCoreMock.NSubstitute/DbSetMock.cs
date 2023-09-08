@@ -25,7 +25,7 @@ namespace EntityFrameworkCoreMock.NSubstitute
 
         public DbSetMock(IEnumerable<TEntity> initialEntities, Func<TEntity, KeyContext, object> keyFactory, bool asyncQuerySupport = true)
         {
-            _store = new DbSetBackingStore<TEntity>(initialEntities, keyFactory);
+            _store = new DbSetBackingStore<TEntity>(initialEntities, keyFactory, null);
 
             var data = _store.GetDataAsQueryable();
 

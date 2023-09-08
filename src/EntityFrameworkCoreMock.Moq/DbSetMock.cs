@@ -21,9 +21,9 @@ namespace EntityFrameworkCoreMock
     {
         private readonly DbSetBackingStore<TEntity> _store;
 
-        public DbSetMock(IEnumerable<TEntity> initialEntities, Func<TEntity, KeyContext, object> keyFactory, bool asyncQuerySupport = true)
+        public DbSetMock(IEnumerable<TEntity> initialEntities, Func<TEntity, KeyContext, object> keyFactory, bool asyncQuerySupport = true, Func<TEntity, TEntity>? handleAddedEntity = null)
         {
-            _store = new DbSetBackingStore<TEntity>(initialEntities, keyFactory);
+            _store = new DbSetBackingStore<TEntity>(initialEntities, keyFactory, handleAddedEntity);
 
             var data = _store.GetDataAsQueryable();
             As<IQueryable<TEntity>>().Setup(x => x.Provider).Returns(asyncQuerySupport ? new DbAsyncQueryProvider<TEntity>(data.Provider) : data.Provider);
@@ -37,6 +37,8 @@ namespace EntityFrameworkCoreMock
                 As<IAsyncEnumerable<TEntity>>().Setup(x => x.GetAsyncEnumerator(It.IsAny<CancellationToken>())).Returns(() => new DbAsyncEnumerator<TEntity>(data.GetEnumerator()));
             }
 
+
+
             Setup(x => x.Add(It.IsAny<TEntity>())).Callback<TEntity>(_store.Add);
             Setup(x => x.AddRange(It.IsAny<TEntity[]>())).Callback<TEntity[]>(_store.Add);
             Setup(x => x.AddRange(It.IsAny<IEnumerable<TEntity>>())).Callback<IEnumerable<TEntity>>(_store.Add);
@@ -47,18 +49,18 @@ namespace EntityFrameworkCoreMock
             Setup(x => x.RemoveRange(It.IsAny<TEntity[]>())).Callback<TEntity[]>(_store.Remove);
             Setup(x => x.RemoveRange(It.IsAny<IEnumerable<TEntity>>())).Callback<IEnumerable<TEntity>>(_store.Remove);
 
-            Setup(x => x.AddAsync(It.IsAny<TEntity>(), It.IsAny<CancellationToken>())).Callback<TEntity, CancellationToken>((x, _) => _store.Add(x)).ReturnsAsync(default(EntityEntry<TEntity>));
+            Setup(x => x.AddAsync(It.IsAny<TEntity>(), It.IsAny<CancellationToken>())).Callback<TEntity, CancellationToken>((x, _) => _store.Add(x))!.ReturnsAsync(default(EntityEntry<TEntity>));
             Setup(x => x.AddRangeAsync(It.IsAny<TEntity[]>())).Callback<TEntity[]>(_store.Add).Returns(Task.CompletedTask);
             Setup(x => x.AddRangeAsync(It.IsAny<IEnumerable<TEntity>>(), It.IsAny<CancellationToken>())).Callback<IEnumerable<TEntity>, CancellationToken>((x, _) => _store.Add(x)).Returns(Task.CompletedTask);
 
             Setup(x => x.Find(It.IsAny<object[]>())).Returns<object[]>(_store.Find);
-            Setup(x => x.FindAsync(It.IsAny<object[]>())).Returns<object[]>(x => new ValueTask<TEntity>(_store.Find(x)));
-            Setup(x => x.FindAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>())).Returns<object[], CancellationToken>((x, _) => new ValueTask<TEntity>(_store.Find(x)));
+            Setup(x => x.FindAsync(It.IsAny<object[]>())).Returns<object[]>(x => new ValueTask<TEntity?>(_store.Find(x)));
+            Setup(x => x.FindAsync(It.IsAny<object[]>(), It.IsAny<CancellationToken>())).Returns<object[], CancellationToken>((x, _) => new ValueTask<TEntity?>(_store.Find(x)));
 
             _store.UpdateSnapshot();
         }
 
-        public event EventHandler<SavedChangesEventArgs<TEntity>> SavedChanges;
+        public event EventHandler<SavedChangesEventArgs<TEntity>>? SavedChanges;
 
         int IDbSetMock.SaveChanges()
         {

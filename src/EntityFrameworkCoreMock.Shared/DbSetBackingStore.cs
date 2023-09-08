@@ -23,11 +23,13 @@ namespace EntityFrameworkCoreMock
         private readonly Dictionary<object, TEntity> _snapshot = new Dictionary<object, TEntity>();
         private List<DbSetChange> _changes = new List<DbSetChange>();
         private readonly KeyContext _keyContext = new KeyContext();
+        private readonly Func<TEntity, TEntity>? handleAddedEntity;
 
-        public DbSetBackingStore(IEnumerable<TEntity> initialEntities, Func<TEntity, KeyContext, object> keyFactory)
+        public DbSetBackingStore(IEnumerable<TEntity> initialEntities, Func<TEntity, KeyContext, object> keyFactory, Func<TEntity, TEntity>? handleAddedEntity)
         {
             _keyFactoryNormalizer = new KeyFactoryNormalizer<TEntity>(keyFactory ?? throw new ArgumentNullException(nameof(keyFactory)));
             initialEntities?.ToList().ForEach(x => _entities.Add(_keyFactoryNormalizer.GenerateKey(x, _keyContext), Clone(x)));
+            this.handleAddedEntity = handleAddedEntity;
         }
 
         public IQueryable<TEntity> GetDataAsQueryable() => _entities.Values.AsQueryable();
@@ -49,7 +51,7 @@ namespace EntityFrameworkCoreMock
         /// </summary>
         /// <param name="keyValues">The key.</param>
         /// <returns>The entity or null in case no entity with a matching key was found.</returns>
-        public TEntity Find(object[] keyValues)
+        public TEntity? Find(object[] keyValues)
         {
             var tupleType = Type.GetType($"System.Tuple`{keyValues.Length}");
             if (tupleType == null) throw new InvalidOperationException($"No tuple type found for {keyValues.Length} generic arguments");
@@ -183,16 +185,32 @@ namespace EntityFrameworkCoreMock
                 .ToArray();
         }
 
-        private static TEntity Clone(TEntity original) => CloneFuncCache.GetOrAdd(original.GetType(), CreateCloneFunc)(original);
-        private static readonly ConcurrentDictionary<Type, Func<TEntity, TEntity>> CloneFuncCache = new ConcurrentDictionary<Type, Func<TEntity, TEntity>>();
-        private static Func<TEntity, TEntity> CreateCloneFunc(Type entityType)
+        private TEntity HandleAddedEntity(TEntity entity)
+        {
+            if (this.handleAddedEntity is not null)
+            {
+                return this.handleAddedEntity(entity);
+            }
+            else
+            {
+                return entity;
+            }
+        }
+
+        private TEntity Clone(TEntity original) => CloneFuncCache.GetOrAdd(original.GetType(), CreateCloneFunc)(original, this);
+        private readonly ConcurrentDictionary<Type, Func<TEntity, DbSetBackingStore<TEntity>, TEntity>> CloneFuncCache = new();
+
+        private Func<TEntity, DbSetBackingStore<TEntity>, TEntity> CreateCloneFunc(Type entityType)
         {
             var properties = entityType.GetProperties(BindingFlags.Instance | BindingFlags.Public)
                 .Where(x => x.CanRead && x.CanWrite && x.GetCustomAttribute<NotMappedAttribute>() == null)
                 .Where(x => x.GetSetMethod(nonPublic: true) != null)
                 .ToArray();
 
+            var handleMethod = this.GetType().GetMethod(nameof(HandleAddedEntity)) ?? throw new NotImplementedException();
+
             var original = Expression.Parameter(typeof(TEntity), "original");
+            var backingStore = Expression.Parameter(typeof(DbSetBackingStore<TEntity>), "backingStore");
             var clone = Expression.Variable(entityType, "clone");
             var newClone = Expression.New(entityType);
             var cloneBlock = Expression.Block(
@@ -202,24 +220,29 @@ namespace EntityFrameworkCoreMock
                     properties.Select(propertyInfo =>
                     {
                         var getter = Expression.Property(Expression.Convert(original, entityType), propertyInfo);
-                        var setter = propertyInfo.GetSetMethod(nonPublic: true);
+                        var setter = propertyInfo.GetSetMethod(nonPublic: true) ?? throw new NotImplementedException();
                         return Expression.Call(clone, setter, getter);
                     })
                 ),
+                Expression.Assign(clone, Expression.Call(backingStore, handleMethod, clone)),
                 clone);
 
-            return Expression.Lambda<Func<TEntity, TEntity>>(cloneBlock, original).Compile();
+            return Expression.Lambda<Func<TEntity, DbSetBackingStore<TEntity>, TEntity>>(cloneBlock, original, backingStore).Compile();
         }
 
         private class DbSetChange
         {
+            private DbSetChange()
+            {
+            }
+
             public bool IsAdd { get; private set; }
 
             public bool IsUpdate { get; private set; }
 
             public bool IsRemove { get; private set; }
 
-            public TEntity Entity { get; private set; }
+            public required TEntity Entity { get; init; }
 
             public static DbSetChange Add(TEntity entity) => new DbSetChange { IsAdd = true, Entity = entity };
 

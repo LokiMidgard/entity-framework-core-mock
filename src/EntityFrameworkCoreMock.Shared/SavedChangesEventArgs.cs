@@ -24,10 +24,10 @@ namespace EntityFrameworkCoreMock
 
     public sealed class UpdatePropertyInfo
     {
-        public string Name { get; set; }
+        public required string Name { get; set; }
 
-        public object Original { get; set; }
+        public object? Original { get; set; }
 
-        public object New { get; set; }
+        public object? New { get; set; }
     }
 }

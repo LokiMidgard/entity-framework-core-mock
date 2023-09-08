@@ -2,17 +2,19 @@
 
   <PropertyGroup>
     <Title>EntityFrameworkCoreMock.NSubstitute</Title>
-    <Description>Easy Mock wrapper for mocking EntityFrameworkCore 5 (EFCore5) DbContext and DbSet using NSubstitute</Description>
+    <Description>Easy Mock wrapper for mocking EntityFrameworkCore 5 (EFCore5) DbContext and DbSet
+      using NSubstitute</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Castle.Core" Version="4.4.1" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="5.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="7.0.10" />
     <PackageReference Include="NSubstitute" Version="4.2.2" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EntityFrameworkCoreMock.Shared\EntityFrameworkCoreMock.Shared.csproj" />
+    <ProjectReference
+      Include="..\EntityFrameworkCoreMock.Shared\EntityFrameworkCoreMock.Shared.csproj" />
   </ItemGroup>
 
 </Project>
