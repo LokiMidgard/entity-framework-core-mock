@@ -4,12 +4,13 @@
  * See LICENSE file.
  */
 
-namespace EntityFrameworkCoreMock
-{
-    public sealed class KeyContext
-    {
+using System;
+
+namespace EntityFrameworkCoreMock {
+    public sealed class KeyContext {
         private long _nextIdentity = 1;
 
         public long NextIdentity => _nextIdentity++;
+        public void EnsureIdUsed(long id) => _nextIdentity = Math.Max(_nextIdentity, id + 1);
     }
 }

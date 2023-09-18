@@ -14,16 +14,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Moq;
 
-namespace EntityFrameworkCoreMock
-{
-    public class DbSetMock<TEntity> : Mock<DbSet<TEntity>>, IDbSetMock
+namespace EntityFrameworkCoreMock {
+    public class DbSetMock<TEntity, TKey> : Mock<DbSet<TEntity>>, IDbSetMock
         where TEntity : class
-    {
-        private readonly DbSetBackingStore<TEntity> _store;
+        where TKey : notnull {
+        private readonly DbSetBackingStore<TEntity, TKey> _store;
 
-        public DbSetMock(IEnumerable<TEntity> initialEntities, Func<TEntity, KeyContext, object> keyFactory, bool asyncQuerySupport = true, Func<TEntity, TEntity>? handleAddedEntity = null)
-        {
-            _store = new DbSetBackingStore<TEntity>(initialEntities, keyFactory, handleAddedEntity);
+        public DbSetMock(IEnumerable<TEntity>? initialEntities, IKeyFactory<TEntity, TKey> keyFactory, bool asyncQuerySupport = true, Func<TEntity, TEntity>? handleAddedEntity = null) {
+            _store = new DbSetBackingStore<TEntity, TKey>(initialEntities, keyFactory, handleAddedEntity);
 
             var data = _store.GetDataAsQueryable();
             As<IQueryable<TEntity>>().Setup(x => x.Provider).Returns(asyncQuerySupport ? new DbAsyncQueryProvider<TEntity>(data.Provider) : data.Provider);
@@ -32,8 +30,7 @@ namespace EntityFrameworkCoreMock
             As<IQueryable<TEntity>>().Setup(x => x.GetEnumerator()).Returns(() => data.GetEnumerator());
             As<IEnumerable>().Setup(x => x.GetEnumerator()).Returns(() => data.GetEnumerator());
 
-            if (asyncQuerySupport)
-            {
+            if (asyncQuerySupport) {
                 As<IAsyncEnumerable<TEntity>>().Setup(x => x.GetAsyncEnumerator(It.IsAny<CancellationToken>())).Returns(() => new DbAsyncEnumerator<TEntity>(data.GetEnumerator()));
             }
 
@@ -62,8 +59,19 @@ namespace EntityFrameworkCoreMock
 
         public event EventHandler<SavedChangesEventArgs<TEntity>>? SavedChanges;
 
-        int IDbSetMock.SaveChanges()
-        {
+        public void Add(object entity) {
+            this.Object.Add((TEntity)entity);
+        }
+
+        public EntityEntry Remove(object entity) {
+            return this.Object.Remove((TEntity)entity);
+        }
+
+        public void Update(object entity) {
+            this.Object.Update((TEntity)entity);
+        }
+
+        int IDbSetMock.SaveChanges() {
             var changes = _store.ApplyChanges();
             SavedChanges?.Invoke(this, new SavedChangesEventArgs<TEntity> { UpdatedEntities = _store.GetUpdatedEntities() });
             _store.UpdateSnapshot();

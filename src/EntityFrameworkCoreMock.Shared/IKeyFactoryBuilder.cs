@@ -6,10 +6,9 @@
 
 using System;
 
-namespace EntityFrameworkCoreMock
-{
-    public interface IKeyFactoryBuilder
-    {
-        Func<T, KeyContext, object> BuildKeyFactory<T>();
-    }
+namespace EntityFrameworkCoreMock; 
+public interface IKeyFactoryBuilder {
+    IKeyFactory<TEntity> BuildKeyFactory<TEntity>();
+    IKeyFactory<TEntity, TKey> BuildKeyFactory<TEntity, TKey>()
+        where TKey : notnull;
 }

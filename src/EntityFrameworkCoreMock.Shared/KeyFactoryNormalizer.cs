@@ -8,28 +8,24 @@ using System;
 using System.Linq;
 using System.Reflection;
 
-namespace EntityFrameworkCoreMock
-{
-    internal sealed class KeyFactoryNormalizer<TEntity>
-        where TEntity : class
-    {
-        private readonly Func<TEntity, KeyContext, object> _keyFactory;
+namespace EntityFrameworkCoreMock {
+    internal sealed class KeyFactoryNormalizer<TEntity, TKey>
+        where TKey : notnull
+        where TEntity : class {
+        private readonly IKeyFactory<TEntity, TKey> _keyFactory;
 
-        public KeyFactoryNormalizer(Func<TEntity, KeyContext, object> keyFactory)
-        {
+        public KeyFactoryNormalizer(IKeyFactory<TEntity, TKey> keyFactory) {
             _keyFactory = keyFactory;
         }
 
         public object GenerateKey(TEntity entity, KeyContext keyContext)
-            => NormalizeKey(_keyFactory(entity, keyContext));
+            => NormalizeKey(_keyFactory.GetOrGenerateAndAssingnKey(entity, keyContext));
 
-        private static object NormalizeKey(object key)
-        {
+        private static object NormalizeKey(object key) {
             var keyType = key?.GetType();
             if (keyType == null) return null;
 
-            if (keyType.FullName?.StartsWith("System.ValueTuple`") ?? false)
-            {
+            if (keyType.FullName?.StartsWith("System.ValueTuple`") ?? false) {
                 var valueTupleTypes = keyType.GetGenericArguments();
                 var toTupleMethod = typeof(TupleExtensions).GetMethods(BindingFlags.Public | BindingFlags.Static)
                     .FirstOrDefault(x => x.Name.Equals(nameof(TupleExtensions.ToTuple)) && x.ReturnType.Name.Equals($"Tuple`{valueTupleTypes.Length}"));
@@ -38,8 +34,7 @@ namespace EntityFrameworkCoreMock
                 return toTupleMethod.Invoke(null, new[] { key });
             }
 
-            if (!keyType.FullName?.StartsWith("System.Tuple`") ?? false)
-            {
+            if (!keyType.FullName?.StartsWith("System.Tuple`") ?? false) {
                 var tupleType = Type.GetType("System.Tuple`1");
                 if (tupleType == null) throw new InvalidOperationException($"No tuple type found for one generic arguments");
                 var constructor = tupleType.MakeGenericType(keyType).GetConstructor(new[] { keyType });
